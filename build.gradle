@@ -1,22 +1,15 @@
 plugins {
     id "java-library"
     id "maven-publish"
+    id "eclipse"
     id "io.papermc.hangar-publish-plugin" version "0.1.2"
 }
 
 repositories {
     mavenLocal()
-    maven {
-        url = uri("https://repo.viaversion.com")
-    }
-
-    maven {
-        url = uri("https://hub.spigotmc.org/nexus/content/repositories/snapshots/")
-    }
-
-    maven {
-        url = uri("https://repo.maven.apache.org/maven2/")
-    }
+    maven { url = uri("https://repo.viaversion.com") }
+    maven { url = uri("https://hub.spigotmc.org/nexus/content/repositories/snapshots/") }
+    maven { url = uri("https://repo.maven.apache.org/maven2/") }
 }
 
 version = project.maven_version
@@ -29,71 +22,43 @@ dependencies {
 
 java.sourceCompatibility = JavaVersion.VERSION_1_8
 
+def pluginVersion = project.version
+
 processResources {
-    inputs.property "version", project.version
-
-    filesMatching("plugin.yml") {
-        expand "version": project.version
-    }
+    inputs.property("pluginVersion", pluginVersion)
+    filesMatching("plugin.yml") { expand(version: pluginVersion) }
 }
 
-java {
-    withSourcesJar()
-}
+java { withSourcesJar() }
 
 publishing {
     publications {
-        maven(MavenPublication) {
-            from(components.java)
-        }
+        maven(MavenPublication) { from(components.java) }
     }
 }
 
-tasks.withType(JavaCompile) {
-    options.encoding = "UTF-8"
-}
+tasks.withType(JavaCompile) { options.encoding = "UTF-8" }
+tasks.withType(Javadoc) { options.encoding = "UTF-8" }
 
-tasks.withType(Javadoc) {
-    options.encoding = "UTF-8"
-}
-
-// -----------------------------------------------------
-// Publishing
-
-def latestCommitHash() {
-    def byteOut = new ByteArrayOutputStream()
-    exec {
-        commandLine 'git', 'rev-parse', '--short', 'HEAD'
-        standardOutput = byteOut
+def execCapture = { List<String> cmd ->
+    def output = new ByteArrayOutputStream()
+    project.services.get(org.gradle.process.ExecOperations).exec {
+        commandLine cmd
+        standardOutput = output
     }
-    return byteOut.toString('UTF-8').trim()
+    output.toString("UTF-8").trim()
 }
 
-def latestCommitMessage() {
-    def byteOut = new ByteArrayOutputStream()
-    exec {
-        commandLine 'git', 'log', '-1', '--pretty=%B'
-        standardOutput = byteOut
-    }
-    return byteOut.toString('UTF-8').trim()
-}
+def latestCommitHash   = execCapture(["git", "rev-parse", "--short", "HEAD"])
+def latestCommitMessage = execCapture(["git", "log", "-1", "--pretty=%B"])
+def branchName         = execCapture(["git", "rev-parse", "--abbrev-ref", "HEAD"])
 
-def branchName() {
-    def byteOut = new ByteArrayOutputStream()
-    exec {
-        commandLine 'git', 'rev-parse', '--abbrev-ref', 'HEAD'
-        standardOutput = byteOut
-    }
-    return byteOut.toString('UTF-8').trim()
-}
-
-def baseVersion = project.maven_version
-def isRelease = !baseVersion.contains('-')
+def baseVersion     = project.maven_version
+def isRelease       = !baseVersion.contains('-')
 def suffixedVersion = isRelease ? baseVersion : baseVersion + "+" + System.getenv("GITHUB_RUN_NUMBER")
-def commitHash = latestCommitHash()
-def changelogContent = "[${commitHash}](https://github.com/ViaVersion/iaRewind-Legacy-Support/commit/${commitHash}) ${latestCommitMessage()}"
-def branch = branchName()
-def isMainBranch = branch == "master"
+def changelogContent = "[${latestCommitHash}](https://github.com/ViaVersion/ViaRewind-Legacy-Support/commit/${latestCommitHash}) ${latestCommitMessage}"
+def isMainBranch    = branchName == "master"
+
 hangarPublish {
     publications.register("plugin") {
         version.set(suffixedVersion)
@@ -105,16 +70,11 @@ hangarPublish {
             PAPER {
                 jar.set(tasks.jar.archiveFile)
                 platformVersions.set([property('mcVersionRange') as String])
-                dependencies.hangar("ViaVersion") {
-                    required.set(true)
-                }
-                dependencies.hangar("ViaBackwards") {
-                    required.set(false)
-                }
-                dependencies.hangar("ViaRewind") {
-                    required.set(false)
-                }
+                dependencies.hangar("ViaVersion")  { required.set(true)  }
+                dependencies.hangar("ViaBackwards"){ required.set(false) }
+                dependencies.hangar("ViaRewind")   { required.set(false) }
             }
         }
     }
 }
+
