@@ -2,6 +2,7 @@ import de.florianreuth.baseproject.*
 
 plugins {
     `java-library`
+    `eclipse`
     id("io.papermc.hangar-publish-plugin")
     id("de.florianreuth.baseproject")
 }
